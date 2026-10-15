@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controle de Ocorrências - 1º Turno</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+        }
+    </script>
+    <!-- Chart.js para gráficos interativos -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- SheetJS (XLSX) para exportação para Excel -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- html2canvas para download em Imagem -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- FontAwesome para ícones -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <style>
+        @media print {
+            nav, .acoes-topo, .botoes-abas, button, .filtros-print {
+                display: none !important;
+            }
+            body {
+                background-color: white !important;
+                color: black !important;
+            }
+            .shadow-md, .shadow-lg {
+                box-shadow: none !important;
+                border: 1px solid #e5e7eb !important;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 dark:bg-slate-950 text-gray-800 dark:text-gray-100 font-sans leading-normal tracking-normal transition-colors duration-200">
+
+    <!-- Navbar -->
+    <nav class="bg-slate-900 dark:bg-slate-900 text-white shadow-lg border-b border-slate-800">
+        <div class="container mx-auto px-6 py-4 flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <i class="fa-solid fa-boxes-stacked text-2xl text-blue-400"></i>
+                <span class="text-xl font-bold tracking-wide">Controle de Ocorrências - 1º Turno</span>
+            </div>
+            <div class="flex items-center gap-3">
+                <span id="status-supabase" class="text-xs bg-slate-800 px-2.5 py-1 rounded-full flex items-center gap-1.5 text-amber-400">
+                    <i class="fa-solid fa-circle text-[8px] animate-pulse"></i> Conectando BD...
+                </span>
+                <span class="text-sm bg-slate-800 px-3 py-1 rounded-full hidden sm:inline-block"><i class="fa-solid fa-clock mr-1"></i> Operação Turno 1</span>
+                <span class="text-sm bg-slate-800 px-3 py-1 rounded-full" id="current-date"></span>
+                <button onclick="alternarModoEscuro()" class="bg-slate-800 hover:bg-slate-700 text-yellow-400 px-3 py-1.5 rounded-lg text-sm transition flex items-center gap-1.5 border border-slate-700" title="Alternar Modo Escuro">
+                    <i class="fa-solid fa-circle-half-stroke" id="icone-tema"></i> <span class="hidden md:inline text-xs font-semibold">Tema</span>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Conteúdo Principal -->
+    <div class="container mx-auto px-6 py-8" id="painel-conteudo">
+
+        <!-- Navegação entre Abas -->
+        <div class="flex flex-wrap justify-between items-center mb-6 botoes-abas gap-4">
+            <div class="flex space-x-2 bg-white dark:bg-slate-900 p-1.5 rounded-xl shadow-sm border border-gray-200 dark:border-slate-800">
+                <button onclick="mudarAba('lancamento')" id="tab-lancamento" class="px-5 py-2.5 rounded-lg text-sm font-semibold transition bg-blue-600 text-white shadow flex items-center gap-2">
+                    <i class="fa-solid fa-pen-to-square"></i> Lançamento de Ocorrência
+                </button>
+                <button onclick="mudarAba('acompanhamento')" id="tab-acompanhamento" class="px-5 py-2.5 rounded-lg text-sm font-semibold transition text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-800 flex items-center gap-2">
+                    <i class="fa-solid fa-chart-line"></i> Acompanhamento & Gráficos
+                </button>
+            </div>
+
+            <!-- Botões de Ação Rápida para Relatórios -->
+            <div class="flex items-center gap-2">
+                <button onclick="abrirModalRelatorioTurnoRapido()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 py-2.5 rounded-xl shadow transition flex items-center gap-2 text-sm">
+                    <i class="fa-solid fa-bolt text-lg"></i> Relatório Rápido de Turno
+                </button>
+                <button onclick="abrirModalRelatorioDia()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2.5 rounded-xl shadow transition flex items-center gap-2 text-sm">
+                    <i class="fa-solid fa-file-invoice text-lg"></i> Relatório do Dia
+                </button>
+            </div>
+        </div>
+
+        <!-- ================= ABA 1: LANÇAMENTO ================= -->
+        <div id="secao-lancamento" class="space-y-6">
+            <div class="bg-white dark:bg-slate-900 rounded-xl shadow-md p-8 border border-gray-200 dark:border-slate-800 max-w-3xl mx-auto">
+                <div class="border-b border-gray-100 dark:border-slate-800 pb-4 mb-6">
+                    <h2 class="text-xl font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+                        <i class="fa-solid fa-pen-to-square text-blue-600"></i> Registrar Nova Ocorrência
+                    </h2>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Informe Sorter manualmente. Carregamento, Faltas e No App são alimentados automaticamente pelo Controle de Carregamento.</p>
+                </div>
+
+                <form id="form-ocorrencia" onsubmit="adicionarOcorrencia(event)" class="space-y-5">
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Data da Ocorrência:</label>
+                        <input type="date" id="input-data" required class="w-full border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-800 dark:text-gray-100 rounded-lg p-3 text-sm focus:outline-none focus:border-blue-500 shadow-sm">
+                    </div>
+
+                    <div class="border-t border-gray-100 dark:border-slate-800 pt-4">
+                        <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
+                            <i class="fa-solid fa-boxes-packing text-blue-500"></i> Totais de Ocorrências do Turno:
+                        </h3>
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                            <div>
+                                <label class="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">Caixas Rasgadas (Sorter - Manual):</label>
+                                <input type="number" id="input-sorter" min="0" value="0" required class="w-full border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-800 dark:text-gray-100 rounded-lg p-3 text-sm focus:outline-none focus:border-blue-500 shadow-sm">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">Caixas Rasgadas (Carreg. - Auto):</label>
+                                <input type="number" id="input-carregamento" min="0" value="0" readonly class="w-full border border-gray-200 dark:border-slate-800 bg-gray-100 dark:bg-slate-800/60 text-gray-500 dark:text-gray-400 rounded-lg p-3 text-sm cursor-not-allowed">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">Faltas no Carreg. (Auto):</label>
+                                <input type="number" id="input-faltas" min="0" value="0" readonly class="w-full border border-gray-200 dark:border-slate-800 bg-gray-100 dark:bg-slate-800/60 text-gray-500 dark:text-gray-400 rounded-lg p-3 text-sm cursor-not-allowed">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-cyan-600 dark:text-cyan-400 mb-1">Faltas no App (Auto):</label>
+                                <input type="number" id="input-faltas-no-app" min="0" value="0" readonly class="w-full border border-gray-200 dark:border-slate-800 bg-gray-100 dark:bg-slate-800/60 text-cyan-600 dark:text-cyan-400 rounded-lg p-3 text-sm cursor-not-allowed font-bold">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- CAMPOS NUMÉRICOS DE PENDÊNCIAS COM SOMA AUTOMÁTICA -->
+                    <div class="border-t border-gray-100 dark:border-slate-800 pt-4 bg-amber-50/50 dark:bg-amber-950/20 p-4 rounded-xl border border-amber-200 dark:border-amber-900/40">
+                        <h3 class="text-sm font-bold text-amber-800 dark:text-amber-400 mb-3 flex items-center gap-2">
+                            <i class="fa-solid fa-list-check text-amber-600"></i> Registro de Pendências (Quantitativo Direto):
+                        </h3>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-xs font-bold text-amber-700 dark:text-amber-300 mb-1">Pendências Sorter:</label>
+                                <input type="number" id="input-pend-sorter" min="0" value="0" oninput="calcularTotalPendencias()" required class="w-full border border-amber-300 dark:border-amber-700/60 bg-white dark:bg-slate-800 text-gray-800 dark:text-gray-100 rounded-lg p-2.5 text-sm focus:outline-none focus:border-amber-500 shadow-sm">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-amber-700 dark:text-amber-300 mb-1">Pendências Carregamento:</label>
+                                <input type="number" id="input-pend-carregamento" min="0" value="0" oninput="calcularTotalPendencias()" required class="w-full border border-amber-300 dark:border-amber-700/60 bg-white dark:bg-slate-800 text-gray-800 dark:text-gray-100 rounded-lg p-2.5 text-sm focus:outline-none focus:border-amber-500 shadow-sm">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-amber-700 dark:text-amber-300 mb-1">Pendências Faltas:</label>
+                                <input type="number" id="input-pend-faltas" min="0" value="0" oninput="calcularTotalPendencias()" required class="w-full border border-amber-300 dark:border-amber-700/60 bg-white dark:bg-slate-800 text-gray-800 dark:text-gray-100 rounded-lg p-2.5 text-sm focus:outline-none focus:border-amber-500 shadow-sm">
+                            </div>
+                        </div>
+
+                        <div class="mt-3 pt-2 border-t border-amber-200 dark:border-amber-900/60 flex justify-between items-center">
+                            <span class="text-xs font-bold text-amber-800 dark:text-amber-300">Total Calculado de Pendências:</span>
+                            <span class="text-base font-extrabold text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/60 px-3 py-0.5 rounded-lg" id="display-total-pendencias">0</span>
+                        </div>
+                    </div>
+
+                    <div class="pt-4 flex justify-between items-center">
+                        <button type="button" onclick="limparDadosSupabase()" class="text-red-500 hover:text-red-700 text-xs font-semibold">
+                            <i class="fa-solid fa-trash-can mr-1"></i> Limpar Todo o Histórico
+                        </button>
+                        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg text-sm shadow transition flex items-center gap-2">
+                            <i class="fa-solid fa-floppy-disk"></i> Salvar Registro Sorter
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Tabela Rápida de Registros Recentes -->
+            <div class="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 max-w-4xl mx-auto border border-gray-200 dark:border-slate-800">
+                <h3 class="text-base font-bold text-gray-800 dark:text-gray-100 mb-3 flex items-center gap-2">
+                    <i class="fa-solid fa-clock-rotate-left text-blue-600"></i> Histórico de Lançamentos
+                </h3>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200 dark:divide-slate-800 text-left text-sm">
+                        <thead class="bg-gray-50 dark:bg-slate-800 text-gray-700 dark:text-gray-300 uppercase font-semibold text-xs">
+                            <tr>
+                                <th class="py-2.5 px-3">Data</th>
+                                <th class="py-2.5 px-3">Sorter</th>
+                                <th class="py-2.5 px-3">Carreg.</th>
+                                <th class="py-2.5 px-3">Faltas</th>
+                                <th class="py-2.5 px-3 text-cyan-600 dark:text-cyan-400">No App</th>
+                                <th class="py-2.5 px-3">Ocorrências</th>
+                                <th class="py-2.5 px-3 text-amber-600 dark:text-amber-400">Total Pend.</th>
+                                <th class="py-2.5 px-3 text-center">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200 dark:divide-slate-800 text-gray-600 dark:text-gray-300" id="tabela-lancamento-corpo"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= ABA 2: ACOMPANHAMENTO ================= -->
+        <div id="secao-acompanhamento" class="hidden space-y-6">
+            
+            <!-- Barra de Filtros por Calendário -->
+            <div class="bg-white dark:bg-slate-900 rounded-xl shadow-md p-4 flex flex-wrap gap-4 items-center justify-between border border-gray-200 dark:border-slate-800 filtros-print">
+                <div class="flex flex-wrap items-center gap-3">
+                    <span class="text-gray-700 dark:text-gray-300 font-bold text-sm"><i class="fa-solid fa-calendar-days text-blue-600 mr-2"></i>Filtrar por Período:</span>
+                    <div class="flex items-center gap-2">
+                        <label class="text-xs text-gray-500 dark:text-gray-400 font-semibold">De:</label>
+                        <input type="date" id="filtro-data-inicio" onchange="aplicarFiltroCalendario()" class="border border-gray-300 dark:border-slate-700 rounded-lg p-2 text-sm bg-gray-50 dark:bg-slate-800 text-gray-800 dark:text-gray-100 focus:outline-none focus:border-blue-500">
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <label class="text-xs text-gray-500 dark:text-gray-400 font-semibold">Até:</label>
+                        <input type="date" id="filtro-data-fim" onchange="aplicarFiltroCalendario()" class="border border-gray-300 dark:border-slate-700 rounded-lg p-2 text-sm bg-gray-50 dark:bg-slate-800 text-gray-800 dark:text-gray-100 focus:outline-none focus:border-blue-500">
+                    </div>
+                    <button onclick="limparFiltroCalendario()" class="bg-gray-200 dark:bg-slate-800 hover:bg-gray-300 dark:hover:bg-slate-700 text-gray-700 dark:text-gray-300 px-3 py-2 rounded-lg text-xs font-semibold transition">
+                        Ver Tudo
+                    </button>
+                </div>
+                <div id="info-filtro-ativo" class="text-xs font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-slate-800 px-3 py-1.5 rounded-lg border border-blue-100 dark:border-slate-700">
+                    Exibindo: Todos os dados
+                </div>
+            </div>
+
+            <!-- Cards de Indicadores (KPIs) QUANTITATIVOS (5 CARDS) -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                <div class="bg-white dark:bg-slate-900 rounded-xl shadow-md p-5 border-l-4 border-red-500 border-t border-r border-b border-gray-200 dark:border-slate-800">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <p class="text-gray-500 dark:text-gray-400 text-xs font-medium">Caixas Rasgadas (Sorter)</p>
+                            <h3 class="text-2xl font-extrabold text-gray-800 dark:text-gray-100 mt-2" id="kpi-sorter">0</h3>
+                        </div>
+                        <div class="bg-red-100 dark:bg-red-950/50 p-2.5 rounded-full text-red-600 dark:text-red-400">
+                            <i class="fa-solid fa-barcode text-lg"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white dark:bg-slate-900 rounded-xl shadow-md p-5 border-l-4 border-orange-500 border-t border-r border-b border-gray-200 dark:border-slate-800">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <p class="text-gray-500 dark:text-gray-400 text-xs font-medium">Caixas Rasgadas (Carreg.)</p>
+                            <h3 class="text-2xl font-extrabold text-gray-800 dark:text-gray-100 mt-2" id="kpi-carregamento-rasgadas">0</h3>
+                        </div>
+                        <div class="bg-orange-100 dark:bg-orange-950/50 p-2.5 rounded-full text-orange-600 dark:text-orange-400">
+                            <i class="fa-solid fa-box-open text-lg"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white dark:bg-slate-900 rounded-xl shadow-md p-5 border-l-4 border-amber-500 border-t border-r border-b border-gray-200 dark:border-slate-800">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <p class="text-gray-500 dark:text-gray-400 text-xs font-medium">Faltas no Carregamento</p>
+                            <h3 class="text-2xl font-extrabold text-gray-800 dark:text-gray-100 mt-2" id="kpi-faltas">0</h3>
+                        </div>
+                        <div class="bg-amber-100 dark:bg-amber-950/50 p-2.5 rounded-full text-amber-600 dark:text-amber-400">
+                            <i class="fa-solid fa-triangle-exclamation text-lg"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white dark:bg-slate-900 rounded-xl shadow-md p-5 border-l-4 border-cyan-500 border-t border-r border-b border-gray-200 dark:border-slate-800">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <p class="text-gray-500 dark:text-gray-400 text-xs font-medium">Faltas no App</p>
+                            <h3 class="text-2xl font-extrabold text-cyan-600 dark:text-cyan-400 mt-2" id="kpi-faltas-no-app">0</h3>
+                        </div>
+                        <div class="bg-cyan-100 dark:bg-cyan-950/50 p-2.5 rounded-full text-cyan-600 dark:text-cyan-400">
+                            <i class="fa-solid fa-mobile-screen-button text-lg"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white dark:bg-slate-900 rounded-xl shadow-md p-5 border-l-4 border-blue-500 border-t border-r border-b border-gray-200 dark:border-slate-800 sm:col-span-2 lg:col-span-1">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <p class="text-gray-500 dark:text-gray-400 text-xs font-medium">Total de Ocorrências</p>
+                            <h3 class="text-2xl font-extrabold text-gray-800 dark:text-gray-100 mt-2" id="kpi-total">0</h3>
+                        </div>
+                        <div class="bg-blue-100 dark:bg-blue-950/50 p-2.5 rounded-full text-blue-600 dark:text-blue-400">
+                            <i class="fa-solid fa-calculator text-lg"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CARTA DE CONTROLE (CEP) -->
+            <div class="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 border border-gray-200 dark:border-slate-800">
+                <div class="flex flex-wrap justify-between items-center mb-2 gap-2">
+                    <div>
+                        <h3 class="text-lg font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+                            <i class="fa-solid fa-shield-halved text-purple-600"></i> Carta de Controle CEP (Controle Estatístico do Processo)
+                        </h3>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">
+                            Acompanhamento estatístico com limites calculados automaticamente (Média ± 3σ).
+                        </p>
+                    </div>
+                    <span id="cep-status-badge" class="px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1.5">
+                        <i class="fa-solid fa-spinner fa-spin"></i> Calculando CEP...
+                    </span>
+                </div>
+                <div class="relative h-72">
+                    <canvas id="cepChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Gráficos Interativos -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 lg:col-span-2 border border-gray-200 dark:border-slate-800">
+                    <h3 class="text-lg font-bold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-chart-line text-blue-600"></i> Evolução das Ocorrências por Dia
+                    </h3>
+                    <div class="relative h-72">
+                        <canvas id="linhaChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 border border-gray-200 dark:border-slate-800">
+                    <h3 class="text-lg font-bold text-gray-800 dark:text-gray-100 mb-1 flex items-center gap-2">
+                        <i class="fa-solid fa-chart-pie text-blue-600"></i> Distribuição Percentual
+                    </h3>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">Proporção exata das ocorrências no período.</p>
+                    <div class="relative h-60 flex justify-center items-center">
+                        <canvas id="pizzaChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 border border-gray-200 dark:border-slate-800">
+                <h3 class="text-lg font-bold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
+                    <i class="fa-solid fa-chart-column text-blue-600"></i> Quantitativo Consolidado por Categoria
+                </h3>
+                <div class="relative h-64">
+                    <canvas id="barraChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Tabela Analítica Completa -->
+            <div class="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 border border-gray-200 dark:border-slate-800">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+                        <i class="fa-solid fa-table text-blue-600"></i> Relatório Analítico
+                    </h3>
+                    <span class="text-sm text-gray-500 dark:text-gray-400" id="contador-linhas">Exibindo todos os registros</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200 dark:divide-slate-800 text-left text-sm" id="tabela-exportacao">
+                        <thead class="bg-gray-50 dark:bg-slate-800 text-gray-700 dark:text-gray-300 uppercase font-semibold text-xs">
+                            <tr>
+                                <th class="py-3 px-4">Data</th>
+                                <th class="py-3 px-4">Rasgadas (Sorter)</th>
+                                <th class="py-3 px-4">Rasgadas (Carreg.)</th>
+                                <th class="py-3 px-4">Faltas (Carreg.)</th>
+                                <th class="py-3 px-4 text-cyan-600 dark:text-cyan-400">Faltas no App</th>
+                                <th class="py-3 px-4">Total Ocorrências</th>
+                                <th class="py-3 px-4 text-amber-600 dark:text-amber-400">Total Pendências</th>
+                                <th class="py-3 px-4">Status Desempenho</th>
+                                <th class="py-3 px-4 text-center">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200 dark:divide-slate-800 text-gray-600 dark:text-gray-300" id="tabela-acompanhamento-corpo"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- OPÇÕES DE EXPORTAÇÃO -->
+            <div class="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 flex flex-wrap items-center justify-between gap-4 border border-gray-200 dark:border-slate-800">
+                <div>
+                    <h4 class="text-base font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+                        <i class="fa-solid fa-file-arrow-down text-blue-600"></i> Exportar Dados
+                    </h4>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Baixe os dados do painel em múltiplos formatos.</p>
+                </div>
+                <div class="flex flex-wrap gap-3">
+                    <button onclick="exportarExcel()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-lg text-sm font-semibold shadow transition flex items-center gap-2">
+                        <i class="fa-solid fa-file-excel"></i> Excel (.xlsx)
+                    </button>
+                    <button onclick="window.print()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg text-sm font-semibold shadow transition flex items-center gap-2">
+                        <i class="fa-solid fa-file-pdf"></i> PDF
+                    </button>
+                    <button onclick="baixarImagem()" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2.5 rounded-lg text-sm font-semibold shadow transition flex items-center gap-2">
+                        <i class="fa-solid fa-camera"></i> Imagem (PNG)
+                    </button>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- ================= MODAL: RELATÓRIO RÁPIDO DE TURNO ================= -->
+    <div id="modal-relatorio-turno-rapido" class="fixed inset-0 bg-slate-900/85 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4 overflow-y-auto">
+        <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-slate-800 w-full max-w-2xl overflow-hidden my-8 transform transition-all">
+            <div class="bg-slate-900 text-white p-5 flex justify-between items-center border-b border-slate-800">
+                <div class="flex items-center gap-3">
+                    <div class="p-2 bg-indigo-500/20 text-indigo-400 rounded-lg">
+                        <i class="fa-solid fa-bolt text-xl"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-bold">Relatório Rápido de Turno</h3>
+                        <p class="text-xs text-slate-400">Resumo direto e limpo das operações do turno</p>
+                    </div>
+                </div>
+                <button onclick="fecharModalRelatorioTurnoRapido()" class="text-slate-400 hover:text-white text-2xl font-bold p-1">&times;</button>
+            </div>
+
+            <div class="p-6 space-y-5">
+                <div class="flex items-center justify-between gap-4 bg-gray-50 dark:bg-slate-800/60 p-3.5 rounded-xl border border-gray-200 dark:border-slate-700">
+                    <label class="text-sm font-bold text-gray-700 dark:text-gray-300">Data de Referência:</label>
+                    <input type="date" id="modal-rapido-seletor-data" onchange="carregarRelatorioTurnoRapido(this.value)" class="border border-gray-300 dark:border-slate-700 rounded-lg p-2 text-sm bg-white dark:bg-slate-900 text-gray-800 dark:text-gray-100 focus:outline-none focus:border-blue-500">
+                </div>
+
+                <div class="border border-gray-200 dark:border-slate-800 rounded-xl p-4 bg-gray-50/50 dark:bg-slate-800/30 space-y-3">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                        <div>
+                            <span class="text-gray-500 dark:text-gray-400 text-xs block">Turno:</span>
+                            <span class="font-bold text-gray-800 dark:text-gray-200">1º Turno</span>
+                        </div>
+                        <div>
+                            <span class="text-gray-500 dark:text-gray-400 text-xs block">Data Selecionada:</span>
+                            <span class="font-bold text-gray-800 dark:text-gray-200" id="rapido-txt-data">--</span>
+                        </div>
+                        <div>
+                            <label class="text-gray-500 dark:text-gray-400 text-xs block mb-1">Responsável:</label>
+                            <select id="modal-rapido-responsavel" class="w-full border border-gray-300 dark:border-slate-700 rounded-lg p-1.5 text-sm bg-white dark:bg-slate-900 text-gray-800 dark:text-gray-100 focus:outline-none focus:border-blue-500 font-bold">
+                                <option value="Yens Farrapo">Yens Farrapo</option>
+                                <option value="Cláudio Sousa">Cláudio Sousa</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="border border-gray-200 dark:border-slate-800 rounded-xl p-4">
+                    <h4 class="text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-3 flex items-center gap-1.5">
+                        <i class="fa-solid fa-boxes-stacked"></i> Ocorrências Registradas
+                    </h4>
+                    <div class="grid grid-cols-3 gap-3 text-center">
+                        <div class="bg-red-50 dark:bg-red-950/30 p-2.5 rounded-lg border border-red-200 dark:border-red-900/50">
+                            <span class="text-[11px] text-red-600 dark:text-red-400 font-semibold block">Sorter</span>
+                            <span class="text-lg font-extrabold text-red-700 dark:text-red-300" id="rapido-val-sorter">0</span>
+                        </div>
+                        <div class="bg-orange-50 dark:bg-orange-950/30 p-2.5 rounded-lg border border-orange-200 dark:border-orange-900/50">
+                            <span class="text-[11px] text-orange-600 dark:text-orange-400 font-semibold block">Carregamento</span>
+                            <span class="text-lg font-extrabold text-orange-700 dark:text-orange-300" id="rapido-val-carregamento">0</span>
+                        </div>
+                        <div class="bg-amber-50 dark:bg-amber-950/30 p-2.5 rounded-lg border border-amber-200 dark:border-amber-900/50">
+                            <span class="text-[11px] text-amber-600 dark:text-amber-400 font-semibold block">Faltas</span>
+                            <span class="text-lg font-extrabold text-amber-700 dark:text-amber-300" id="rapido-val-faltas">0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-gray-50 dark:bg-slate-800/80 px-6 py-4 flex justify-end">
+                <button onclick="fecharModalRelatorioTurnoRapido()" class="bg-slate-700 hover:bg-slate-800 text-white font-semibold px-5 py-2 rounded-lg text-sm transition">
+                    Fechar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= MODAL: RELATÓRIO DO DIA ================= -->
+    <div id="modal-relatorio-dia" class="fixed inset-0 bg-slate-900/85 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4 overflow-y-auto">
+        <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-slate-800 w-full max-w-4xl overflow-hidden my-8 transform transition-all">
+            <div class="bg-slate-900 text-white p-6 flex justify-between items-center border-b border-slate-800">
+                <div class="flex items-center gap-3">
+                    <div class="p-2 bg-emerald-500/20 text-emerald-400 rounded-lg">
+                        <i class="fa-solid fa-chart-line text-xl"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-bold">Relatório do Dia & Detalhamento</h3>
+                        <p class="text-xs text-slate-400">Análise por métricas individuais do turno</p>
+                    </div>
+                </div>
+                <button onclick="fecharModalRelatorioDia()" class="text-slate-400 hover:text-white text-2xl font-bold p-1">&times;</button>
+            </div>
+
+            <div class="p-6 space-y-6">
+                <div class="flex items-center justify-between gap-4 bg-gray-50 dark:bg-slate-800/60 p-4 rounded-xl border border-gray-200 dark:border-slate-700">
+                    <label class="text-sm font-bold text-gray-700 dark:text-gray-300">Selecione o Dia para Análise:</label>
+                    <input type="date" id="modal-seletor-data" onchange="carregarRelatorioDia(this.value)" class="border border-gray-300 dark:border-slate-700 rounded-lg p-2 text-sm bg-white dark:bg-slate-900 text-gray-800 dark:text-gray-100 focus:outline-none focus:border-blue-500">
+                </div>
+
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
+                    <div class="p-3.5 rounded-xl bg-gray-50 dark:bg-slate-800/40 border border-gray-200 dark:border-slate-800">
+                        <span class="text-xs text-gray-500 dark:text-gray-400 font-semibold block">Sorter</span>
+                        <span class="text-xl font-extrabold text-red-500" id="modal-ocorr-sorter">0</span>
+                    </div>
+                    <div class="p-3.5 rounded-xl bg-gray-50 dark:bg-slate-800/40 border border-gray-200 dark:border-slate-800">
+                        <span class="text-xs text-gray-500 dark:text-gray-400 font-semibold block">Carregamento</span>
+                        <span class="text-xl font-extrabold text-orange-500" id="modal-ocorr-carregamento">0</span>
+                    </div>
+                    <div class="p-3.5 rounded-xl bg-gray-50 dark:bg-slate-800/40 border border-gray-200 dark:border-slate-800">
+                        <span class="text-xs text-gray-500 dark:text-gray-400 font-semibold block">Faltas</span>
+                        <span class="text-xl font-extrabold text-amber-500" id="modal-ocorr-faltas">0</span>
+                    </div>
+                    <div class="p-3.5 rounded-xl bg-blue-500/10 dark:bg-blue-500/20 border border-blue-300 dark:border-blue-800/60">
+                        <span class="text-xs text-blue-700 dark:text-blue-400 font-bold block">Faltas no App</span>
+                        <span class="text-xl font-extrabold text-cyan-600 dark:text-cyan-400" id="modal-ocorr-faltas-app">0</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-gray-50 dark:bg-slate-800/80 px-6 py-4 flex justify-end">
+                <button onclick="fecharModalRelatorioDia()" class="bg-slate-700 hover:bg-slate-800 text-white font-semibold px-5 py-2 rounded-lg text-sm transition">
+                    Fechar Relatório
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SCRIPT DE LÓGICA + SUPABASE CONECTADO -->
+    <script>
+        const SUPABASE_URL = 'Https://dylwhnsxjbeiukdmcupq.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_uZL-3Z0_a-X-ZjMhwRXC9w_RP8c754J';
+        
+        let supabaseClient = null;
+        let registros = [];
+
+        try {
+            if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+                supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            }
+        } catch (e) {
+            console.error("Erro ao instanciar o Supabase:", e);
+        }
+
+        const optionsDate = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+        document.getElementById('current-date').innerText = new Date().toLocaleDateString('pt-BR', optionsDate);
+        document.getElementById('input-data').valueAsDate = new Date();
+
+        let linhaChart, pizzaChart, barraChart, cepChart;
+
+        async function carregarRegistrosSupabase() {
+            const statusEl = document.getElementById('status-supabase');
+            
+            if (!supabaseClient) {
+                statusEl.className = "text-xs bg-slate-800 px-2.5 py-1 rounded-full flex items-center gap-1.5 text-red-400";
+                statusEl.innerHTML = `<i class="fa-solid fa-circle text-[8px]"></i> Erro Conexão BD`;
+                return;
+            }
+
+            try {
+                await sincronizarFaltasNoAppDoCarregamento();
+
+                const { data, error } = await supabaseClient
+                    .from('ocorrencias_turno1')
+                    .select('*')
+                    .order('data', { ascending: false });
+
+                if (error) throw error;
+
+                registros = (data || []).map(item => ({
+                    id: item.id,
+                    data: item.data,
+                    sorter: item.sorter || 0,
+                    carregamento: item.carregamento || 0,
+                    faltas: item.faltas || 0,
+                    faltasNoApp: item.faltas_no_app || 0,
+                    pendSorter: item.pend_sorter || 0,
+                    pendCarregamento: item.pend_carregamento || 0,
+                    pendFaltas: item.pend_faltas || 0,
+                    qtdPendencias: (item.pend_sorter || 0) + (item.pend_carregamento || 0) + (item.pend_faltas || 0)
+                }));
+
+                statusEl.className = "text-xs bg-slate-800 px-2.5 py-1 rounded-full flex items-center gap-1.5 text-green-400";
+                statusEl.innerHTML = `<i class="fa-solid fa-circle text-[8px]"></i> Sincronizado`;
+
+                atualizarTabelaLancamento();
+                if(!document.getElementById('secao-acompanhamento').classList.contains('hidden')){
+                    aplicarFiltroCalendario();
+                }
+            } catch (err) {
+                console.error("Erro ao carregar do Supabase:", err);
+                statusEl.className = "text-xs bg-slate-800 px-2.5 py-1 rounded-full flex items-center gap-1.5 text-red-400";
+                statusEl.innerHTML = `<i class="fa-solid fa-circle text-[8px]"></i> Erro BD`;
+            }
+        }
+
+        async function sincronizarFaltasNoAppDoCarregamento() {
+            if (!supabaseClient) return;
+            try {
+                // Lê os dados da tabela de portões onde ficam as faltas do aplicativo
+                const { data: itensPortao, error } = await supabaseClient
+                    .from('controle_faltas_portao')
+                    .select('data_operacao, no_app');
+
+                if (error || !itensPortao) return;
+
+                // Conta quantos registros possuem 'Sim' na coluna no_app agrupado por data
+                const contagemPorData = {};
+                itensPortao.forEach(item => {
+                    const dt = item.data_operacao;
+                    if (!dt) return;
+                    if (!contagemPorData[dt]) contagemPorData[dt] = 0;
+                    if (String(item.no_app).trim().toLowerCase() === 'sim') {
+                        contagemPorData[dt]++;
+                    }
+                });
+
+                // Atualiza ou insere o valor correspondente na tabela de ocorrências
+                for (const [dt, qtd] of Object.entries(contagemPorData)) {
+                    const { data: existente } = await supabaseClient
+                        .from('ocorrencias_turno1')
+                        .select('id')
+                        .eq('data', dt)
+                        .maybeSingle();
+
+                    if (existente) {
+                        await supabaseClient
+                            .from('ocorrencias_turno1')
+                            .update({ faltas_no_app: qtd })
+                            .eq('data', dt);
+                    } else {
+                        await supabaseClient
+                            .from('ocorrencias_turno1')
+                            .insert([{
+                                data: dt,
+                                sorter: 0,
+                                carregamento: 0,
+                                faltas: 0,
+                                faltas_no_app: qtd,
+                                pend_sorter: 0,
+                                pend_carregamento: 0,
+                                pend_faltas: 0
+                            }]);
+                    }
+                }
+            } catch (e) {
+                console.warn("Erro ao calcular faltas no app:", e);
+            }
+        }
+
+        function calcularTotalPendencias() {
+            const pSorter = parseInt(document.getElementById('input-pend-sorter').value) || 0;
+            const pCarreg = parseInt(document.getElementById('input-pend-carregamento').value) || 0;
+            const pFaltas = parseInt(document.getElementById('input-pend-faltas').value) || 0;
+            const total = pSorter + pCarreg + pFaltas;
+            document.getElementById('display-total-pendencias').innerText = total;
+            return total;
+        }
+
+        function avaliarCategoria(tipo, valor) {
+            const v = Number(valor) || 0;
+            if (tipo === 'sorter') {
+                if (v <= 22) return { nivel: 1, rotulo: 'Bom', cor: 'green' };
+                if (v <= 27) return { nivel: 2, rotulo: 'Atenção', cor: 'amber' };
+                return { nivel: 3, rotulo: 'Crítico', cor: 'red' };
+            }
+            if (tipo === 'carregamento') {
+                if (v <= 4) return { nivel: 1, rotulo: 'Bom', cor: 'green' };
+                if (v <= 7) return { nivel: 2, rotulo: 'Atenção', cor: 'amber' };
+                return { nivel: 3, rotulo: 'Crítico', cor: 'red' };
+            }
+            if (tipo === 'faltas') {
+                if (v <= 3) return { nivel: 1, rotulo: 'Bom', cor: 'green' };
+                if (v <= 5) return { nivel: 2, rotulo: 'Atenção', cor: 'amber' };
+                return { nivel: 3, rotulo: 'Crítico', cor: 'red' };
+            }
+            return { nivel: 1, rotulo: 'Bom', cor: 'green' };
+        }
+
+        function calcularStatusGeralDia(registro) {
+            if (!registro) return { nivel: 1, rotulo: 'Bom', cor: 'green' };
+            const stSorter = avaliarCategoria('sorter', registro.pendSorter || 0);
+            const stCarreg = avaliarCategoria('carregamento', registro.pendCarregamento || 0);
+            const stFaltas = avaliarCategoria('faltas', registro.pendFaltas || 0);
+            const maiorNivel = Math.max(stSorter.nivel, stCarreg.nivel, stFaltas.nivel);
+            if (maiorNivel === 3) return { nivel: 3, rotulo: 'Crítico', cor: 'red' };
+            if (maiorNivel === 2) return { nivel: 2, rotulo: 'Atenção', cor: 'amber' };
+            return { nivel: 1, rotulo: 'Bom', cor: 'green' };
+        }
+
+        function inicializarTema() {
+            const temaSalvo = localStorage.getItem('tema_turno1');
+            if (temaSalvo === 'dark' || (!temaSalvo && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+                document.getElementById('icone-tema').className = "fa-solid fa-moon text-yellow-400";
+            } else {
+                document.documentElement.classList.remove('dark');
+                document.getElementById('icone-tema').className = "fa-solid fa-sun text-yellow-400";
+            }
+        }
+
+        function alternarModoEscuro() {
+            if (document.documentElement.classList.contains('dark')) {
+                document.documentElement.classList.remove('dark');
+                localStorage.setItem('tema_turno1', 'light');
+                document.getElementById('icone-tema').className = "fa-solid fa-sun text-yellow-400";
+            } else {
+                document.documentElement.classList.add('dark');
+                localStorage.setItem('tema_turno1', 'dark');
+                document.getElementById('icone-tema').className = "fa-solid fa-moon text-yellow-400";
+            }
+            if(!document.getElementById('secao-acompanhamento').classList.contains('hidden')){
+                aplicarFiltroCalendario();
+            }
+        }
+
+        inicializarTema();
+
+        function mudarAba(aba) {
+            const secLancamento = document.getElementById('secao-lancamento');
+            const secAcompanhamento = document.getElementById('secao-acompanhamento');
+            const btnLancamento = document.getElementById('tab-lancamento');
+            const btnAcompanhamento = document.getElementById('tab-acompanhamento');
+
+            if (aba === 'lancamento') {
+                secLancamento.classList.remove('hidden');
+                secAcompanhamento.classList.add('hidden');
+                btnLancamento.className = "px-5 py-2.5 rounded-lg text-sm font-semibold transition bg-blue-600 text-white shadow flex items-center gap-2";
+                btnAcompanhamento.className = "px-5 py-2.5 rounded-lg text-sm font-semibold transition text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-800 flex items-center gap-2";
+            } else {
+                secLancamento.classList.add('hidden');
+                secAcompanhamento.classList.remove('hidden');
+                btnAcompanhamento.className = "px-5 py-2.5 rounded-lg text-sm font-semibold transition bg-blue-600 text-white shadow flex items-center gap-2";
+                btnLancamento.className = "px-5 py-2.5 rounded-lg text-sm font-semibold transition text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-800 flex items-center gap-2";
+                aplicarFiltroCalendario();
+            }
+        }
+
+        async function adicionarOcorrencia(event) {
+            event.preventDefault();
+            if (!supabaseClient) return;
+
+            const data = document.getElementById('input-data').value;
+            const sorter = parseInt(document.getElementById('input-sorter').value) || 0;
+            const pendSorter = parseInt(document.getElementById('input-pend-sorter').value) || 0;
+            const pendCarregamento = parseInt(document.getElementById('input-pend-carregamento').value) || 0;
+            const pendFaltas = parseInt(document.getElementById('input-pend-faltas').value) || 0;
+
+            const indexExistente = registros.findIndex(r => r.data === data);
+
+            if (indexExistente >= 0) {
+                const regAtual = registros[indexExistente];
+                await supabaseClient.from('ocorrencias_turno1').update({
+                    sorter, pend_sorter: pendSorter, pend_carregamento: pendCarregamento, pend_faltas: pendFaltas
+                }).eq('id', regAtual.id);
+            } else {
+                await supabaseClient.from('ocorrencias_turno1').insert([{
+                    data, sorter, carregamento: 0, faltas: 0, faltas_no_app: 0,
+                    pend_sorter: pendSorter, pend_carregamento: pendCarregamento, pend_faltas: pendFaltas
+                }]);
+            }
+            await carregarRegistrosSupabase();
+            mudarAba('acompanhamento');
+        }
+
+        async function removerRegistro(id) {
+            if (!supabaseClient) return;
+            if(confirm("Remover este registro do banco de dados?")) {
+                await supabaseClient.from('ocorrencias_turno1').delete().eq('id', id);
+                await carregarRegistrosSupabase();
+            }
+        }
+
+        async function limparDadosSupabase() {
+            if (!supabaseClient) return;
+            if (confirm("ATENÇÃO! Deseja apagar TODOS os registros?")) {
+                await supabaseClient.from('ocorrencias_turno1').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+                await carregarRegistrosSupabase();
+            }
+        }
+
+        function formatarDataBR(dataStr) {
+            if (!dataStr) return '';
+            const partes = dataStr.split('-');
+            return partes.length === 3 ? `${partes[2]}/${partes[1]}/${partes[0]}` : dataStr;
+        }
+
+        function atualizarTabelaLancamento() {
+            const registrosOrdenados = [...registros].sort((a, b) => new Date(b.data) - new Date(a.data));
+            const tbody = document.getElementById('tabela-lancamento-corpo');
+            tbody.innerHTML = '';
+
+            registrosOrdenados.forEach((item) => {
+                const total = Number(item.sorter) + Number(item.carregamento) + Number(item.faltas);
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-gray-50 dark:hover:bg-slate-800 border-b border-gray-100 dark:border-slate-800";
+                tr.innerHTML = `
+                    <td class="py-2.5 px-3 font-medium">${formatarDataBR(item.data)}</td>
+                    <td class="py-2.5 px-3 text-red-600 font-semibold">${item.sorter}</td>
+                    <td class="py-2.5 px-3 text-orange-600 font-semibold">${item.carregamento}</td>
+                    <td class="py-2.5 px-3 text-amber-600 font-semibold">${item.faltas}</td>
+                    <td class="py-2.5 px-3 text-cyan-600 font-bold">${item.faltasNoApp || 0}</td>
+                    <td class="py-2.5 px-3 font-bold">${total}</td>
+                    <td class="py-2.5 px-3 text-amber-600 font-bold">${item.qtdPendencias || 0}</td>
+                    <td class="py-2.5 px-3 text-center">
+                        <button onclick="removerRegistro('${item.id}')" class="text-red-500 hover:text-red-700 bg-red-50 dark:bg-red-950/50 px-2 py-1 rounded">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function aplicarFiltroCalendario() {
+            const dataInicio = document.getElementById('filtro-data-inicio').value;
+            const dataFim = document.getElementById('filtro-data-fim').value;
+            let dadosFiltrados = [...registros];
+
+            if (dataInicio && dataFim) {
+                dadosFiltrados = registros.filter(r => r.data >= dataInicio && r.data <= dataFim);
+            } else if (dataInicio) {
+                dadosFiltrados = registros.filter(r => r.data >= dataInicio);
+            } else if (dataFim) {
+                dadosFiltrados = registros.filter(r => r.data <= dataFim);
+            }
+
+            dadosFiltrados.sort((a, b) => new Date(a.data) - new Date(b.data));
+            document.getElementById('contador-linhas').innerText = `Total de ${dadosFiltrados.length} dias no intervalo.`;
+            processarDadosParaDashboard(dadosFiltrados);
+        }
+
+        function limparFiltroCalendario() {
+            document.getElementById('filtro-data-inicio').value = '';
+            document.getElementById('filtro-data-fim').value = '';
+            aplicarFiltroCalendario();
+        }
+
+        function processarDadosParaDashboard(dados) {
+            let tSorter = 0, tCarregamento = 0, tFaltas = 0, tFaltasNoApp = 0;
+            const lab = [], dSorter = [], dCarregamento = [], dFaltas = [], dFaltasNoApp = [], dTotais = [];
+            const tbody = document.getElementById('tabela-acompanhamento-corpo');
+            tbody.innerHTML = '';
+
+            dados.forEach(item => {
+                tSorter += item.sorter;
+                tCarregamento += item.carregamento;
+                tFaltas += item.faltas;
+                tFaltasNoApp += (item.faltasNoApp || 0);
+                const totalDia = item.sorter + item.carregamento + item.faltas;
+
+                lab.push(formatarDataBR(item.data));
+                dSorter.push(item.sorter);
+                dCarregamento.push(item.carregamento);
+                dFaltas.push(item.faltas);
+                dFaltasNoApp.push(item.faltasNoApp || 0);
+                dTotais.push(totalDia);
+
+                const statusGeral = calcularStatusGeralDia(item);
+                let badgeClass = "bg-green-100 text-green-800 dark:bg-green-950/80 dark:text-green-300 border-green-300";
+                if (statusGeral.cor === 'amber') badgeClass = "bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 border-amber-300";
+                if (statusGeral.cor === 'red') badgeClass = "bg-red-100 text-red-800 dark:bg-red-950/80 dark:text-red-300 border-red-300";
+
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-gray-50 dark:hover:bg-slate-800 border-b border-gray-100 dark:border-slate-800";
+                tr.innerHTML = `
+                    <td class="py-3 px-4 font-medium">${formatarDataBR(item.data)}</td>
+                    <td class="py-3 px-4 text-red-600 font-semibold">${item.sorter}</td>
+                    <td class="py-3 px-4 text-orange-600 font-semibold">${item.carregamento}</td>
+                    <td class="py-3 px-4 text-amber-600 font-semibold">${item.faltas}</td>
+                    <td class="py-3 px-4 text-cyan-600 font-bold">${item.faltasNoApp || 0}</td>
+                    <td class="py-3 px-4 font-bold">${totalDia}</td>
+                    <td class="py-3 px-4 text-amber-600 font-bold">${item.qtdPendencias || 0}</td>
+                    <td class="py-3 px-4"><span class="px-2.5 py-0.5 text-xs font-bold rounded-full border ${badgeClass}">${statusGeral.rotulo}</span></td>
+                    <td class="py-3 px-4 text-center">
+                        <button onclick="abrirModalRelatorioDia('${item.data}')" class="text-xs bg-emerald-100 text-emerald-700 font-bold px-2.5 py-1 rounded">Ver</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            document.getElementById('kpi-sorter').innerText = tSorter;
+            document.getElementById('kpi-carregamento-rasgadas').innerText = tCarregamento;
+            document.getElementById('kpi-faltas').innerText = tFaltas;
+            document.getElementById('kpi-faltas-no-app').innerText = tFaltasNoApp;
+            document.getElementById('kpi-total').innerText = (tSorter + tCarregamento + tFaltas);
+
+            renderizarGraficos(lab, dSorter, dCarregamento, dFaltas, dFaltasNoApp, tSorter, tCarregamento, tFaltas);
+            renderizarGraficoCEP(lab, dTotais);
+        }
+
+        function renderizarGraficoCEP(labels, dadosTotais) {
+            const isDark = document.documentElement.classList.contains('dark');
+            const corTexto = isDark ? '#94a3b8' : '#4b5563';
+            const corGrid = isDark ? '#1e293b' : '#f3f4f6';
+            const badge = document.getElementById('cep-status-badge');
+
+            if (dadosTotais.length === 0) {
+                badge.innerText = "Sem dados";
+                if (cepChart) cepChart.destroy();
+                return;
+            }
+
+            const soma = dadosTotais.reduce((a, b) => a + b, 0);
+            const media = soma / dadosTotais.length;
+            const variancia = dadosTotais.reduce((a, b) => a + Math.pow(b - media, 2), 0) / (dadosTotais.length > 1 ? dadosTotais.length - 1 : 1);
+            const desvioPadrao = Math.sqrt(variancia);
+            const lsc = Math.round((media + 3 * desvioPadrao) * 10) / 10;
+
+            badge.className = "px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-800 border";
+            badge.innerHTML = `<i class="fa-solid fa-circle-check mr-1"></i> Processo Sob Controle`;
+
+            const ctxCEP = document.getElementById('cepChart').getContext('2d');
+            if (cepChart) cepChart.destroy();
+
+            cepChart = new Chart(ctxCEP, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        { label: 'Total Ocorrências', data: dadosTotais, borderColor: '#3b82f6', borderWidth: 2, fill: false },
+                        { label: `LSC (${lsc})`, data: Array(dadosTotais.length).fill(lsc), borderColor: '#ef4444', borderDash: [6, 6], pointRadius: 0 }
+                    ]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        }
+
+        function renderizarGraficos(labels, dSorter, dCarregamento, dFaltas, dFaltasNoApp, tSorter, tCarregamento, tFaltas) {
+            const ctxLinha = document.getElementById('linhaChart').getContext('2d');
+            if (linhaChart) linhaChart.destroy();
+            linhaChart = new Chart(ctxLinha, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        { label: 'Sorter', data: dSorter, borderColor: '#ef4444' },
+                        { label: 'Carregamento', data: dCarregamento, borderColor: '#f97316' },
+                        { label: 'Faltas', data: dFaltas, borderColor: '#f59e0b' },
+                        { label: 'Faltas no App', data: dFaltasNoApp, borderColor: '#06b6d4' }
+                    ]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+
+            const ctxPizza = document.getElementById('pizzaChart').getContext('2d');
+            if (pizzaChart) pizzaChart.destroy();
+            pizzaChart = new Chart(ctxPizza, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Sorter', 'Carreg.', 'Faltas'],
+                    datasets: [{ data: [tSorter, tCarregamento, tFaltas], backgroundColor: ['#ef4444', '#f97316', '#f59e0b'] }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+
+            const ctxBarra = document.getElementById('barraChart').getContext('2d');
+            if (barraChart) barraChart.destroy();
+            barraChart = new Chart(ctxBarra, {
+                type: 'bar',
+                data: {
+                    labels: ['Sorter', 'Carregamento', 'Faltas'],
+                    datasets: [{ data: [tSorter, tCarregamento, tFaltas], backgroundColor: ['#ef4444', '#f97316', '#f59e0b'] }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+            });
+        }
+
+        // Funções dos Modais
+        function abrirModalRelatorioTurnoRapido(dataPadrao) {
+            document.getElementById('modal-relatorio-turno-rapido').classList.remove('hidden');
+            const seletor = document.getElementById('modal-rapido-seletor-data');
+            seletor.value = dataPadrao || (registros.length > 0 ? registros[0].data : new Date().toISOString().split('T')[0]);
+            carregarRelatorioTurnoRapido(seletor.value);
+        }
+        function fecharModalRelatorioTurnoRapido() { document.getElementById('modal-relatorio-turno-rapido').classList.add('hidden'); }
+        function carregarRelatorioTurnoRapido(dataAlvo) {
+            document.getElementById('rapido-txt-data').innerText = formatarDataBR(dataAlvo);
+            const reg = registros.find(r => r.data === dataAlvo) || { sorter: 0, carregamento: 0, faltas: 0 };
+            document.getElementById('rapido-val-sorter').innerText = reg.sorter;
+            document.getElementById('rapido-val-carregamento').innerText = reg.carregamento;
+            document.getElementById('rapido-val-faltas').innerText = reg.faltas;
+        }
+
+        function abrirModalRelatorioDia(dataPadrao) {
+            document.getElementById('modal-relatorio-dia').classList.remove('hidden');
+            const seletor = document.getElementById('modal-seletor-data');
+            seletor.value = dataPadrao || (registros.length > 0 ? registros[0].data : new Date().toISOString().split('T')[0]);
+            carregarRelatorioDia(seletor.value);
+        }
+        function fecharModalRelatorioDia() { document.getElementById('modal-relatorio-dia').classList.add('hidden'); }
+        function carregarRelatorioDia(dataAlvo) {
+            const reg = registros.find(r => r.data === dataAlvo) || { sorter: 0, carregamento: 0, faltas: 0, faltasNoApp: 0 };
+            document.getElementById('modal-ocorr-sorter').innerText = reg.sorter;
+            document.getElementById('modal-ocorr-carregamento').innerText = reg.carregamento;
+            document.getElementById('modal-ocorr-faltas').innerText = reg.faltas;
+            document.getElementById('modal-ocorr-faltas-app').innerText = reg.faltasNoApp;
+        }
+
+        function exportarExcel() {
+            if (registros.length === 0) { alert("Sem dados."); return; }
+            const dadosExport = registros.map(r => ({
+                "Data": formatarDataBR(r.data),
+                "Rasgadas (Sorter)": r.sorter,
+                "Rasgadas (Carregamento)": r.carregamento,
+                "Faltas no Carregamento": r.faltas,
+                "Faltas no App": r.faltasNoApp || 0,
+                "Total Ocorrências": r.sorter + r.carregamento + r.faltas
+            }));
+            const worksheet = XLSX.utils.json_to_sheet(dadosExport);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Ocorrencias");
+            XLSX.writeFile(workbook, "Controle_Ocorrencias_Turno1.xlsx");
+        }
+
+        function baixarImagem() {
+            html2canvas(document.getElementById('painel-conteudo'), { scale: 2 }).then(canvas => {
+                const link = document.createElement('a');
+                link.download = 'painel_ocorrencias.png';
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            });
+        }
+
+        window.onload = function() { carregarRegistrosSupabase(); };
+    </script>
+</body>
+</html>
